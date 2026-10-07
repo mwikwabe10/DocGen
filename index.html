@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocGen Pro v01 Studio — Enterprise Document Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Paystack Inline JS SDK -->
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        serif: ['Playfair Display', 'serif'],
+                        cinzel: ['Cinzel', 'serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .unpaid-preview { user-select: none; -webkit-user-select: none; }
+        .paid-preview { user-select: text; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; opacity: 0.8; }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-document, #printable-document * { visibility: visible; }
+            #printable-document {
+                position: absolute; left: 0; top: 0; width: 100%;
+                margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: none !important;
+            }
+            .no-print { display: none !important; }
+            header, section.lg\:col-span-5, .max-w-3xl.mx-auto.w-full.mb-4, .max-w-3xl.mx-auto.w-full.mt-6, #payment-modal {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-zinc-950">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-zinc-800 bg-zinc-900/85 backdrop-blur sticky top-0 z-30 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div id="nav-brand-badge" class="bg-gradient-to-tr from-emerald-600 to-emerald-400 text-zinc-950 p-2.5 rounded-xl font-black text-sm tracking-tighter flex items-center justify-center shadow-lg">
+                <i class="fa-solid fa-file-shield text-base"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-sm text-zinc-100 flex items-center space-x-2">
+                    <span>DocGen Pro</span>
+                    <span id="version-badge" class="bg-emerald-500/10 text-emerald-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-emerald-500/20 font-bold">v01 Studio</span>
+                </h1>
+                <p class="text-[11px] text-zinc-400 font-medium">Enterprise Document Studio • Generate, Customize & Export</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <button onclick="resetFormState()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 border border-zinc-700" title="Reset Form">
+                <i class="fa-solid fa-rotate-right text-[10px]"></i>
+                <span class="hidden sm:inline">Reset Form</span>
+            </button>
+            <button onclick="handleDownloadAction()" id="header-pay-btn" class="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 shadow-lg">
+                <i class="fa-solid fa-lock text-[11px]"></i>
+                <span>Pay & Download PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+        
+        <!-- Left Panel: Controls & Customization (5 Cols) -->
+        <section class="lg:col-span-5 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full overflow-y-auto p-6 space-y-6">
+            
+            <!-- Document Type Selector -->
+            <div>
+                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Select Document Type</label>
+                <div class="grid grid-cols-3 gap-2 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800">
+                    <button type="button" id="btn-type-Invoice" onclick="setDocType('Invoice')" class="py-2 text-[11px] font-bold rounded-lg transition bg-emerald-500 text-zinc-950 shadow">Invoice</button>
+                    <button type="button" id="btn-type-Quotation" onclick="setDocType('Quotation')" class="py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200">Quotation</button>
+                    <button type="button" id="btn-type-Receipt" onclick="setDocType('Receipt')" class="py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200">Receipt</button>
+                    <button type="button" id="btn-type-Certificate" onclick="setDocType('Certificate')" class="py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200">Certificate</button>
+                    <button type="button" id="btn-type-Proposal" onclick="setDocType('Proposal')" class="py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200">Proposal</button>
+                    <button type="button" id="btn-type-Delivery" onclick="setDocType('Delivery')" class="py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200">Delivery Note</button>
+                </div>
+            </div>
+
+            <!-- Sub-Layout Variant Selector -->
+            <div class="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label id="layout-label-text" class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <i class="fa-solid fa-layer-group text-xs"></i>
+                        <span>Design Layouts (4 Options)</span>
+                    </label>
+                    <span id="variant-type-badge" class="text-[10px] font-mono bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded border border-zinc-800">Layout 1</span>
+                </div>
+                <div id="sublayout-buttons-container" class="grid grid-cols-2 gap-2"></div>
+            </div>
+
+            <!-- Color Theme Customizer -->
+            <div>
+                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Accent Color Theme</label>
+                <div class="grid grid-cols-6 gap-2">
+                    <button type="button" onclick="setThemeColor('emerald', '#10b981', '#065f46')" class="h-8 rounded-lg bg-emerald-500 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Emerald"></button>
+                    <button type="button" onclick="setThemeColor('indigo', '#6366f1', '#3730a3')" class="h-8 rounded-lg bg-indigo-500 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Indigo"></button>
+                    <button type="button" onclick="setThemeColor('amber', '#f59e0b', '#b45309')" class="h-8 rounded-lg bg-amber-500 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Amber"></button>
+                    <button type="button" onclick="setThemeColor('rose', '#f43f5e', '#9f1239')" class="h-8 rounded-lg bg-rose-500 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Rose"></button>
+                    <button type="button" onclick="setThemeColor('cyan', '#06b6d4', '#155e75')" class="h-8 rounded-lg bg-cyan-500 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Cyan"></button>
+                    <button type="button" onclick="setThemeColor('slate', '#64748b', '#1e293b')" class="h-8 rounded-lg bg-slate-600 border-2 border-zinc-950 shadow hover:scale-105 transition" title="Slate"></button>
+                </div>
+            </div>
+
+            <!-- Certificate Specific Customizer -->
+            <div id="certificate-type-config" class="space-y-3 bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 hidden">
+                <label class="block text-xs font-bold text-emerald-400 uppercase tracking-wider">Certificate Type / Category</label>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button type="button" onclick="setCertPreset('Certificate of Achievement')" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-bold py-1.5 px-2 rounded border border-zinc-800 transition">Achievement</button>
+                    <button type="button" onclick="setCertPreset('Certificate of Participation')" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-bold py-1.5 px-2 rounded border border-zinc-800 transition">Participation</button>
+                    <button type="button" onclick="setCertPreset('Certificate of Excellence')" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-bold py-1.5 px-2 rounded border border-zinc-800 transition">Excellence</button>
+                    <button type="button" onclick="setCertPreset('Certificate of Completion')" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-bold py-1.5 px-2 rounded border border-zinc-800 transition">Completion</button>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-zinc-400 mb-1">Custom Certificate Title</label>
+                    <input type="text" id="cert-title-input" value="Certificate of Achievement" oninput="updateLivePreview()" placeholder="e.g. Certificate of Merit" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 font-bold focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Extended Document Info -->
+            <div id="extended-info-section" class="space-y-4 pt-2 border-t border-zinc-800 hidden">
+                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider">Extended Structural Content</label>
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">Introduction / Executive Overview</label>
+                    <textarea id="doc-intro" rows="2" oninput="updateLivePreview()" placeholder="State the main objective or introduction..." class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">Company Profile / Background</label>
+                    <textarea id="company-profile" rows="2" oninput="updateLivePreview()" placeholder="Brief overview of your company background..." class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none"></textarea>
+                </div>
+            </div>
+
+            <!-- Receipt Payment Config -->
+            <div id="receipt-payment-config" class="space-y-3 bg-zinc-950 p-3 rounded-xl border border-zinc-800 hidden">
+                <label class="block text-xs font-bold text-emerald-400 uppercase tracking-wider">Receipt Payment Status</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-zinc-400 mb-1">Status Mode</label>
+                        <select id="receipt-status-mode" onchange="updateLivePreview()" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                            <option value="full">Paid in Full</option>
+                            <option value="partial">Partial Payment</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-zinc-400 mb-1">Amount Paid</label>
+                        <input type="number" id="amount-paid" value="0" min="0" oninput="updateLivePreview()" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 font-mono focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Meta Details -->
+            <div class="space-y-4 pt-2 border-t border-zinc-800">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Document Metadata</label>
+                    <select id="currency" onchange="updateLivePreview()" class="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200 font-mono focus:outline-none">
+                        <option value="KES">KES (Ksh)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label id="doc-number-label" class="block text-[11px] font-medium text-zinc-400 mb-1">Document #</label>
+                        <input type="text" id="doc-number" value="" oninput="updateLivePreview()" placeholder="e.g. INV-001" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none">
+                    </div>
+                    <div>
+                        <label id="date-label" class="block text-[11px] font-medium text-zinc-400 mb-1">Date</label>
+                        <input type="date" id="doc-date" onchange="updateLivePreview()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none">
+                    </div>
+                </div>
+                <div id="due-date-container">
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">Due / Validity Date</label>
+                    <input type="date" id="due-date" onchange="updateLivePreview()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Issuer & Client Info -->
+            <div class="space-y-4 pt-2 border-t border-zinc-800">
+                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider">Issuer & Recipient</label>
+                <div class="space-y-2 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-zinc-300">Logo Position / Alignment</span>
+                        <div class="flex space-x-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+                            <button type="button" id="align-left" onclick="setLogoAlign('left')" class="px-2 py-0.5 text-[10px] rounded bg-zinc-800 text-zinc-200 font-bold">Left</button>
+                            <button type="button" id="align-center" onclick="setLogoAlign('center')" class="px-2 py-0.5 text-[10px] rounded text-zinc-400 hover:text-zinc-200">Center</button>
+                            <button type="button" id="align-right" onclick="setLogoAlign('right')" class="px-2 py-0.5 text-[10px] rounded text-zinc-400 hover:text-zinc-200">Right</button>
+                        </div>
+                    </div>
+                    <input type="text" id="sender-name" value="" oninput="updateLivePreview()" placeholder="Your Organization Name" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    
+                    <!-- Logo Upload with Clear Button -->
+                    <div class="space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] text-zinc-400">Company Logo</span>
+                            <button type="button" onclick="clearLogoImage()" id="clear-logo-btn" class="text-[10px] text-rose-400 hover:text-rose-300 hidden"><i class="fa-solid fa-xmark mr-1"></i>Remove Logo</button>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <input type="text" id="sender-logo" value="" oninput="updateLivePreview()" placeholder="Paste Logo Image URL (https://...)" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                            <label class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition shrink-0 border border-zinc-700" title="Upload Logo">
+                                <i class="fa-solid fa-upload"></i>
+                                <input type="file" id="logo-file-input" accept="image/*" onchange="handleLogoUpload(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+
+                    <input type="text" id="sender-contact" value="" oninput="updateLivePreview()" placeholder="Email / Phone" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    <input type="text" id="sender-address" value="" oninput="updateLivePreview()" placeholder="City / Address" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                </div>
+
+                <!-- Client Info -->
+                <div class="space-y-2 bg-zinc-950 p-3 rounded-xl border border-sky-500/40 shadow-inner">
+                    <div class="text-[11px] font-bold text-sky-400 flex items-center space-x-1.5">
+                        <i class="fa-solid fa-user-shield text-xs"></i>
+                        <span>Client / Recipient (Triggers Payment Lock)</span>
+                    </div>
+                    <input type="text" id="client-name" value="" oninput="updateLivePreview()" placeholder="Client / Recipient Name" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 font-bold focus:outline-none">
+                    <input type="text" id="client-contact" value="" oninput="updateLivePreview()" placeholder="Client Email" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    <input type="text" id="client-address" value="" oninput="updateLivePreview()" placeholder="Client Address" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Dynamic Line Items -->
+            <div class="space-y-3 pt-2 border-t border-zinc-800">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <label id="items-section-title" class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Line Items / Scope</label>
+                        <div class="text-[10px] text-emerald-400">Customized layout per style</div>
+                    </div>
+                    <button type="button" onclick="addLineItem()" class="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center space-x-1">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                        <span>Add Entry</span>
+                    </button>
+                </div>
+                <div id="line-items-container" class="space-y-2"></div>
+            </div>
+
+            <!-- Tax & Discount -->
+            <div id="financial-tax-box" class="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800">
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">Tax Rate (%)</label>
+                    <input type="number" id="tax-rate" value="0" min="0" max="100" oninput="updateLivePreview()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">Discount Amount</label>
+                    <input type="number" id="discount-amount" value="0" min="0" oninput="updateLivePreview()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Notes & Terms -->
+            <div class="pt-2 border-t border-zinc-800">
+                <label id="notes-label" class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Notes / Terms</label>
+                <textarea id="doc-notes" rows="3" oninput="updateLivePreview()" placeholder="Enter notes..." class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 focus:outline-none"></textarea>
+            </div>
+
+            <!-- Signature, Seal & Official Stamp Settings -->
+            <div class="space-y-4 pt-2 border-t border-zinc-800">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Signatures, Seals & Official Stamps</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="show-signature" checked onchange="updateLivePreview()" class="sr-only peer">
+                        <div class="w-7 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-zinc-400 mb-1">Signatory Name</label>
+                        <input type="text" id="auth-name" value="" oninput="updateLivePreview()" placeholder="Full Name" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-zinc-400 mb-1">Designation</label>
+                        <input type="text" id="auth-title" value="" oninput="updateLivePreview()" placeholder="Title" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Device Signature Upload -->
+                <div class="space-y-2 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-bold text-zinc-300">Electronic Signature Image</label>
+                        <button type="button" onclick="clearSignatureImage()" id="clear-sig-btn" class="text-[10px] text-rose-400 hover:text-rose-300 hidden"><i class="fa-solid fa-xmark mr-1"></i>Remove</button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="auth-sig-url" value="" oninput="updateLivePreview()" placeholder="Or paste image URL (https://...)" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                        <label class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition shrink-0 border border-zinc-700" title="Upload from Device">
+                            <i class="fa-solid fa-signature"></i>
+                            <input type="file" id="sig-file-input" accept="image/*" onchange="handleSigUpload(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex items-center space-x-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <input type="checkbox" id="show-seal" checked onchange="updateLivePreview()" class="rounded text-emerald-500 focus:ring-0">
+                        <label for="show-seal" class="text-[11px] text-zinc-300 font-medium">Include Official Seal Badge</label>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <input type="checkbox" id="show-stamp" checked onchange="updateLivePreview()" class="rounded text-emerald-500 focus:ring-0">
+                        <label for="show-stamp" class="text-[11px] text-zinc-300 font-medium">Include Corporate Stamp Box</label>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Panel: Live Secured Preview (7 Cols) -->
+        <section class="lg:col-span-7 bg-zinc-950 flex flex-col h-full overflow-y-auto p-8 relative">
+            
+            <div id="banner-status" class="max-w-3xl mx-auto w-full mb-4 flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-amber-300">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-amber-400"></i>
+                    <span id="banner-text"><strong>Client Verification Pending:</strong> Payment verification is required to unlock.</span>
+                </div>
+                <button onclick="handleDownloadAction()" class="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold px-3 py-1 rounded-lg transition shadow">
+                    Pay & Unlock
+                </button>
+            </div>
+
+            <div class="max-w-3xl mx-auto w-full bg-white text-zinc-900 rounded-2xl shadow-2xl p-10 relative flex flex-col justify-between min-h-[900px] transition-all duration-300" id="document-wrapper">
+                <div id="watermark-container"></div>
+                <div id="printable-document" class="relative z-10 flex-1 flex flex-col justify-between"></div>
+            </div>
+
+            <div class="max-w-3xl mx-auto w-full mt-6 flex items-center justify-end bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                <div class="flex items-center space-x-3">
+                    <button onclick="handlePrintAction()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 border border-zinc-700">
+                        <i class="fa-solid fa-print text-[10px]"></i>
+                        <span>Print</span>
+                    </button>
+                    <button onclick="handleDownloadAction()" class="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-lg">
+                        <i class="fa-solid fa-file-arrow-down text-[11px]"></i>
+                        <span>Authorize Payment & Download PDF</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Payment Gateway Modal -->
+    <div id="payment-modal" class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl relative">
+            <button onclick="closePaymentModal()" class="absolute top-4 right-4 text-zinc-400 hover:text-zinc-200 transition">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl border border-emerald-500/20">
+                    <i class="fa-solid fa-user-check text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm text-zinc-100">Client Verification Fee</h3>
+                    <p id="modal-subtitle" class="text-xs text-zinc-400">Complete payment to unlock this document.</p>
+                </div>
+            </div>
+            <div class="bg-zinc-950 border border-zinc-800 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                    <div class="text-xs text-zinc-400">Verification Fee</div>
+                    <div class="font-black text-lg text-zinc-100">KES 100 <span class="text-xs font-normal text-zinc-500">($1.00 USD)</span></div>
+                </div>
+                <div class="text-right">
+                    <span id="modal-client-badge" class="bg-sky-500/10 text-sky-400 text-[10px] font-mono px-2.5 py-1 rounded-full border border-sky-500/20 font-bold">Client</span>
+                </div>
+            </div>
+            <button type="button" onclick="executePayment()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-2.5 rounded-xl text-xs transition shadow-lg flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-lock text-[11px]"></i>
+                <span>Authorize & Unlock Now</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APP LOGIC -->
+    <script>
+        const docVariants = {
+            Invoice: [
+                { id: 'modern', name: '1. Modern Minimalist' },
+                { id: 'corporate', name: '2. Corporate Dark' },
+                { id: 'ledger', name: '3. Compact Ledger' },
+                { id: 'split', name: '4. Split Column' }
+            ],
+            Quotation: [
+                { id: 'tech', name: '1. Sleek Tech' },
+                { id: 'grid', name: '2. Architectural Grid' },
+                { id: 'executive', name: '3. Executive Brief' },
+                { id: 'cards', name: '4. Modern Cards' }
+            ],
+            Receipt: [
+                { id: 'standard', name: '1. Standard Receipt' },
+                { id: 'card', name: '2. Voucher Slip' },
+                { id: 'ledger', name: '3. Ledger Statement' },
+                { id: 'badge', name: '4. Certified Badge' }
+            ],
+            Certificate: [
+                { id: 'badge', name: '1. Modern Tech Badge' },
+                { id: 'minimal', name: '2. Minimalist Typo' },
+                { id: 'gold', name: '3. Gold Border' },
+                { id: 'parchment', name: '4. Classic Parchment' }
+            ],
+            Proposal: [
+                { id: 'enterprise', name: '1. Enterprise Strategic' },
+                { id: 'technical', name: '2. Technical SOW' },
+                { id: 'consulting', name: '3. Consulting Grid' },
+                { id: 'executive', name: '4. Executive Summary' }
+            ],
+            Delivery: [
+                { id: 'dispatch', name: '1. Dispatch Note' },
+                { id: 'logistics', name: '2. Logistics Sheet' },
+                { id: 'warehouse', name: '3. Warehouse Inventory' },
+                { id: 'executive_dn', name: '4. Executive Manifest' }
+            ]
+        };
+
+        let appState = {
+            docType: 'Invoice',
+            variant: 'modern',
+            currency: 'KES',
+            date: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+            docNumber: 'INV-2026-001',
+            senderName: 'Apex Digital Solutions Ltd',
+            senderLogo: '',
+            logoAlign: 'left',
+            senderContact: 'billing@apexdigital.co.ke | +254 700 000 000',
+            senderAddress: 'Nairobi, Kenya',
+            clientName: 'Savannah Holdings Corp',
+            clientContact: 'procurement@savannah.co.ke',
+            clientAddress: 'Westlands, Nairobi',
+            taxRate: 0,
+            discountAmount: 0,
+            intro: 'This comprehensive proposal outlines the project objectives, deliverables, and technical execution milestones for our strategic partnership.',
+            companyProfile: 'Apex Digital Solutions Ltd is a premier technology & geospatial intelligence firm specializing in enterprise software architecture, spatial analytics, and digital transformation.',
+            notes: 'Please make payment via bank transfer or mobile money within the stipulated due date. Thank you for your partnership!',
+            showSignature: true,
+            authName: 'John Mwikwabe',
+            authTitle: 'Managing Director',
+            authSigUrl: '',
+            showSeal: true,
+            showStamp: true,
+            certTitle: 'Certificate of Achievement',
+            themePrimary: '#10b981',
+            themeDark: '#065f46',
+            themeName: 'emerald',
+            items: [
+                { desc: 'Enterprise Cloud Architecture & GIS Integration', qty: 1, price: 45000 },
+                { desc: 'Custom Dashboard Frontend & API Pipeline Development', qty: 2, price: 20000 }
+            ],
+            lastPaidClientName: null
+        };
+
+        let paymentTargetAction = 'download';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            syncStateToDOM();
+            renderSubLayoutButtons();
+            renderLineItems();
+            updateLivePreview();
+        });
+
+        function resetFormState() {
+            if(confirm("Are you sure you want to completely clear and reset all fields?")) {
+                appState.docNumber = '';
+                appState.clientName = '';
+                appState.clientContact = '';
+                appState.clientAddress = '';
+                appState.senderName = '';
+                appState.senderLogo = '';
+                appState.senderContact = '';
+                appState.senderAddress = '';
+                appState.taxRate = 0;
+                appState.discountAmount = 0;
+                appState.intro = '';
+                appState.companyProfile = '';
+                appState.notes = '';
+                appState.authName = '';
+                appState.authTitle = '';
+                appState.authSigUrl = '';
+                appState.certTitle = 'Certificate of Achievement';
+                appState.items = [{ desc: '', qty: 1, price: 0 }];
+                appState.lastPaidClientName = null;
+                syncStateToDOM();
+                renderLineItems();
+                updateLivePreview();
+            }
+        }
+
+        function syncStateToDOM() {
+            document.getElementById('doc-number').value = appState.docNumber;
+            document.getElementById('doc-date').value = appState.date;
+            document.getElementById('due-date').value = appState.dueDate;
+            document.getElementById('sender-name').value = appState.senderName;
+            document.getElementById('sender-logo').value = appState.senderLogo;
+            document.getElementById('sender-contact').value = appState.senderContact;
+            document.getElementById('sender-address').value = appState.senderAddress;
+            document.getElementById('client-name').value = appState.clientName;
+            document.getElementById('client-contact').value = appState.clientContact;
+            document.getElementById('client-address').value = appState.clientAddress;
+            document.getElementById('tax-rate').value = appState.taxRate;
+            document.getElementById('discount-amount').value = appState.discountAmount;
+            document.getElementById('doc-intro').value = appState.intro;
+            document.getElementById('company-profile').value = appState.companyProfile;
+            document.getElementById('doc-notes').value = appState.notes;
+            document.getElementById('auth-name').value = appState.authName;
+            document.getElementById('auth-title').value = appState.authTitle;
+            document.getElementById('auth-sig-url').value = appState.authSigUrl;
+            document.getElementById('show-seal').checked = appState.showSeal;
+            document.getElementById('show-stamp').checked = appState.showStamp;
+            document.getElementById('cert-title-input').value = appState.certTitle;
+
+            const clearSigBtn = document.getElementById('clear-sig-btn');
+            if (appState.authSigUrl) clearSigBtn.classList.remove('hidden');
+            else clearSigBtn.classList.add('hidden');
+
+            const clearLogoBtn = document.getElementById('clear-logo-btn');
+            if (appState.senderLogo) clearLogoBtn.classList.remove('hidden');
+            else clearLogoBtn.classList.add('hidden');
+        }
+
+        function setThemeColor(name, primary, dark) {
+            appState.themeName = name;
+            appState.themePrimary = primary;
+            appState.themeDark = dark;
+            
+            document.getElementById('nav-brand-badge').style.background = `linear-gradient(to top right, ${dark}, ${primary})`;
+            document.getElementById('version-badge').style.color = primary;
+            document.getElementById('version-badge').style.borderColor = primary + '40';
+            document.getElementById('version-badge').style.backgroundColor = primary + '10';
+            updateLivePreview();
+        }
+
+        function setCertPreset(title) {
+            appState.certTitle = title;
+            document.getElementById('cert-title-input').value = title;
+            updateLivePreview();
+        }
+
+        function setLogoAlign(align) {
+            appState.logoAlign = align;
+            ['left', 'center', 'right'].forEach(a => {
+                const btn = document.getElementById(`align-${a}`);
+                if (a === align) {
+                    btn.className = 'px-2 py-0.5 text-[10px] rounded bg-zinc-800 text-zinc-200 font-bold';
+                } else {
+                    btn.className = 'px-2 py-0.5 text-[10px] rounded text-zinc-400 hover:text-zinc-200';
+                }
+            });
+            updateLivePreview();
+        }
+
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    appState.senderLogo = e.target.result;
+                    document.getElementById('sender-logo').value = '[Uploaded Logo File]';
+                    document.getElementById('clear-logo-btn').classList.remove('hidden');
+                    updateLivePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearLogoImage() {
+            appState.senderLogo = '';
+            document.getElementById('sender-logo').value = '';
+            document.getElementById('clear-logo-btn').classList.add('hidden');
+            updateLivePreview();
+        }
+
+        function handleSigUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    appState.authSigUrl = e.target.result;
+                    document.getElementById('auth-sig-url').value = '[Device Signature Uploaded]';
+                    document.getElementById('clear-sig-btn').classList.remove('hidden');
+                    updateLivePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearSignatureImage() {
+            appState.authSigUrl = '';
+            document.getElementById('auth-sig-url').value = '';
+            document.getElementById('clear-sig-btn').classList.add('hidden');
+            updateLivePreview();
+        }
+
+        function isClientPaid() {
+            if (!appState.clientName.trim()) return true;
+            if (!appState.lastPaidClientName) return false;
+            return appState.lastPaidClientName.trim().toLowerCase() === appState.clientName.trim().toLowerCase();
+        }
+
+        function setDocType(type) {
+            appState.docType = type;
+            const variants = docVariants[type] || [];
+            appState.variant = variants[0].id;
+
+            ['Invoice', 'Quotation', 'Receipt', 'Certificate', 'Proposal', 'Delivery'].forEach(t => {
+                const btn = document.getElementById(`btn-type-${t}`);
+                if (t === type) {
+                    btn.className = 'py-2 text-[11px] font-bold rounded-lg transition bg-emerald-500 text-zinc-950 shadow';
+                } else {
+                    btn.className = 'py-2 text-[11px] font-bold rounded-lg transition text-zinc-400 hover:text-zinc-200';
+                }
+            });
+
+            renderSubLayoutButtons();
+
+            const dateLabel = document.getElementById('date-label');
+            const numLabel = document.getElementById('doc-number-label');
+            const dueContainer = document.getElementById('due-date-container');
+            const receiptConfig = document.getElementById('receipt-payment-config');
+            const financialBox = document.getElementById('financial-tax-box');
+            const itemsTitle = document.getElementById('items-section-title');
+            const notesLabel = document.getElementById('notes-label');
+            const extendedSection = document.getElementById('extended-info-section');
+            const certConfig = document.getElementById('certificate-type-config');
+
+            if (type === 'Invoice') {
+                dateLabel.textContent = 'Invoice Date';
+                numLabel.textContent = 'Invoice Number';
+                appState.docNumber = appState.docNumber || 'INV-2026-001';
+                dueContainer.style.display = 'block';
+                receiptConfig.classList.add('hidden');
+                financialBox.style.display = 'grid';
+                itemsTitle.textContent = 'Line Items & Pricing';
+                notesLabel.textContent = 'Notes & Payment Terms';
+                extendedSection.classList.add('hidden');
+                certConfig.classList.add('hidden');
+            } else if (type === 'Quotation') {
+                dateLabel.textContent = 'Issue Date';
+                numLabel.textContent = 'Quotation Number';
+                appState.docNumber = appState.docNumber || 'QUO-2026-001';
+                dueContainer.style.display = 'block';
+                receiptConfig.classList.add('hidden');
+                financialBox.style.display = 'grid';
+                itemsTitle.textContent = 'Quotation Items & Pricing';
+                notesLabel.textContent = 'Quotation Terms & Validity';
+                extendedSection.classList.add('hidden');
+                certConfig.classList.add('hidden');
+            } else if (type === 'Receipt') {
+                dateLabel.textContent = 'Payment Date';
+                numLabel.textContent = 'Receipt Number';
+                appState.docNumber = appState.docNumber || 'REC-2026-001';
+                dueContainer.style.display = 'none';
+                receiptConfig.classList.remove('hidden');
+                financialBox.style.display = 'grid';
+                appState.taxRate = 0;
+                document.getElementById('tax-rate').value = 0;
+                itemsTitle.textContent = 'Paid Items & Services';
+                notesLabel.textContent = 'Receipt Notes';
+                extendedSection.classList.add('hidden');
+                certConfig.classList.add('hidden');
+            } else if (type === 'Certificate') {
+                dateLabel.textContent = 'Award Date';
+                numLabel.textContent = 'Certificate ID';
+                appState.docNumber = appState.docNumber || 'CERT-2026-001';
+                dueContainer.style.display = 'none';
+                receiptConfig.classList.add('hidden');
+                financialBox.style.display = 'none';
+                itemsTitle.textContent = 'Award Criteria / Modules Completed';
+                notesLabel.textContent = 'Certificate Citation / Recognition Text';
+                extendedSection.classList.add('hidden');
+                certConfig.classList.remove('hidden');
+            } else if (type === 'Proposal') {
+                dateLabel.textContent = 'Proposal Date';
+                numLabel.textContent = 'Proposal Ref';
+                appState.docNumber = appState.docNumber || 'PROP-2026-001';
+                dueContainer.style.display = 'block';
+                receiptConfig.classList.add('hidden');
+                financialBox.style.display = 'grid';
+                itemsTitle.textContent = 'Project Phases & Deliverables';
+                notesLabel.textContent = 'Terms & Conditions';
+                extendedSection.classList.remove('hidden');
+                certConfig.classList.add('hidden');
+            } else if (type === 'Delivery') {
+                dateLabel.textContent = 'Dispatch Date';
+                numLabel.textContent = 'Dispatch Note #';
+                appState.docNumber = appState.docNumber || 'DN-2026-001';
+                dueContainer.style.display = 'none';
+                receiptConfig.classList.add('hidden');
+                financialBox.style.display = 'none';
+                itemsTitle.textContent = 'Items Dispatched';
+                notesLabel.textContent = 'Delivery Notes & Instructions';
+                extendedSection.classList.add('hidden');
+                certConfig.classList.add('hidden');
+            }
+
+            document.getElementById('doc-number').value = appState.docNumber;
+            renderLineItems();
+            updateLivePreview();
+        }
+
+        function renderSubLayoutButtons() {
+            const container = document.getElementById('sublayout-buttons-container');
+            container.innerHTML = '';
+            const variants = docVariants[appState.docType] || [];
+            
+            variants.forEach((v) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                const isSelected = appState.variant === v.id;
+                btn.className = `py-2 px-2.5 text-[11px] font-bold rounded-lg transition border ${isSelected ? 'bg-zinc-800 text-zinc-100 border-zinc-600 shadow' : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'}`;
+                if (isSelected) btn.style.borderColor = appState.themePrimary;
+                
+                btn.innerHTML = `<div class="truncate">${v.name}</div>`;
+                btn.onclick = () => {
+                    appState.variant = v.id;
+                    renderSubLayoutButtons();
+                    updateLivePreview();
+                };
+                container.appendChild(btn);
+            });
+            document.getElementById('variant-type-badge').textContent = `Active: ${variants.find(v => v.id === appState.variant)?.name || 'Layout 1'}`;
+        }
+
+        function renderLineItems() {
+            const container = document.getElementById('line-items-container');
+            container.innerHTML = '';
+            appState.items.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800';
+                let isNoPrice = appState.docType === 'Certificate' || appState.docType === 'Delivery';
+
+                div.innerHTML = `
+                    <div class="flex-1">
+                        <input type="text" value="${item.desc}" oninput="updateItem(${index}, 'desc', this.value)" placeholder="${isNoPrice ? 'Criterion / Item...' : 'Description...'}" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                    </div>
+                    <div class="w-16">
+                        <input type="number" value="${item.qty}" min="1" oninput="updateItem(${index}, 'qty', this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 font-mono text-center focus:outline-none" title="Quantity">
+                    </div>
+                    ${!isNoPrice ? `
+                    <div class="w-24">
+                        <input type="number" value="${item.price}" min="0" oninput="updateItem(${index}, 'price', this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 font-mono text-right focus:outline-none" title="Unit Price">
+                    </div>` : ''}
+                    <button type="button" onclick="removeLineItem(${index})" class="text-zinc-500 hover:text-rose-400 p-1.5 transition" title="Delete">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addLineItem() {
+            appState.items.push({ desc: '', qty: 1, price: 0 });
+            renderLineItems();
+            updateLivePreview();
+        }
+
+        function removeLineItem(index) {
+            if (appState.items.length <= 1) return;
+            appState.items.splice(index, 1);
+            renderLineItems();
+            updateLivePreview();
+        }
+
+        function updateItem(index, field, value) {
+            appState.items[index][field] = field === 'qty' || field === 'price' ? parseFloat(value) || 0 : value;
+            updateLivePreview();
+        }
+
+        function updateLivePreview() {
+            appState.currency = document.getElementById('currency').value;
+            appState.date = document.getElementById('doc-date').value;
+            appState.dueDate = document.getElementById('due-date').value;
+            appState.docNumber = document.getElementById('doc-number').value;
+            appState.senderName = document.getElementById('sender-name').value;
+            
+            const logoVal = document.getElementById('sender-logo').value;
+            if (logoVal && logoVal !== '[Uploaded Logo File]') {
+                appState.senderLogo = logoVal;
+            }
+
+            appState.senderContact = document.getElementById('sender-contact').value;
+            appState.senderAddress = document.getElementById('sender-address').value;
+            appState.clientName = document.getElementById('client-name').value;
+            appState.clientContact = document.getElementById('client-contact').value;
+            appState.clientAddress = document.getElementById('client-address').value;
+            appState.taxRate = parseFloat(document.getElementById('tax-rate').value) || 0;
+            appState.discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
+            appState.intro = document.getElementById('doc-intro').value;
+            appState.companyProfile = document.getElementById('company-profile').value;
+            appState.notes = document.getElementById('doc-notes').value;
+            appState.showSignature = document.getElementById('show-signature').checked;
+            appState.authName = document.getElementById('auth-name').value;
+            appState.authTitle = document.getElementById('auth-title').value;
+            appState.showSeal = document.getElementById('show-seal').checked;
+            appState.showStamp = document.getElementById('show-stamp').checked;
+            appState.certTitle = document.getElementById('cert-title-input').value || 'Certificate of Achievement';
+
+            let subtotal = appState.items.reduce((acc, item) => acc + (item.qty * item.price), 0);
+            let discount = Math.min(appState.discountAmount, subtotal);
+            let taxable = subtotal - discount;
+            let tax = taxable * (appState.taxRate / 100);
+            let total = taxable + tax;
+
+            const curSyms = { KES: 'Ksh ', USD: '$', EUR: '€', GBP: '£' };
+            const curSym = curSyms[appState.currency] || appState.currency;
+
+            const docEl = document.getElementById('printable-document');
+            const isPaid = isClientPaid();
+            const bannerEl = document.getElementById('banner-status');
+            const watermarkContainer = document.getElementById('watermark-container');
+
+            if (isPaid || !appState.clientName.trim()) {
+                docEl.className = 'relative z-10 flex-1 flex flex-col justify-between paid-preview';
+                watermarkContainer.innerHTML = '';
+                bannerEl.style.display = 'none';
+            } else {
+                docEl.className = 'relative z-10 flex-1 flex flex-col justify-between unpaid-preview';
+                watermarkContainer.innerHTML = `
+                    <div class="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-20">
+                        <div class="text-zinc-900/[0.04] font-black text-6xl uppercase tracking-widest rotate-[-30deg] select-none text-center">
+                            CLIENT VERIFICATION REQUIRED
+                        </div>
+                    </div>
+                `;
+                bannerEl.style.display = 'flex';
+                document.getElementById('banner-text').innerHTML = `<strong>New Client Billed ("${appState.clientName}"):</strong> Payment verification required to unlock.`;
+            }
+
+            docEl.innerHTML = generateDocumentHtml(subtotal, discount, tax, total, curSym);
+        }
+
+        function generateDocumentHtml(subtotal, discount, tax, total, curSym) {
+            let flexAlign = 'items-start text-left';
+            let justifyHeader = 'justify-between';
+            if (appState.logoAlign === 'center') {
+                flexAlign = 'items-center text-center mx-auto';
+                justifyHeader = 'justify-center flex-col text-center';
+            } else if (appState.logoAlign === 'right') {
+                flexAlign = 'items-end text-right ml-auto';
+                justifyHeader = 'justify-end flex-col text-right';
+            }
+
+            let logoHtml = appState.senderLogo ? `<img src="${appState.senderLogo}" alt="Logo" class="h-12 max-w-[160px] object-contain mb-2">` : '';
+
+            let signatureHtml = '';
+            if (appState.showSignature) {
+                let sigVisual = '';
+                if (appState.authSigUrl && appState.authSigUrl !== '[Device Signature Uploaded]') {
+                    sigVisual = `<img src="${appState.authSigUrl}" class="h-12 max-w-[160px] object-contain mb-1" alt="Signature">`;
+                } else if (appState.authSigUrl === '[Device Signature Uploaded]') {
+                    sigVisual = `<img src="${appState.authSigUrl}" class="h-12 max-w-[160px] object-contain mb-1" alt="Signature">`;
+                } else {
+                    sigVisual = `<div class="h-12 w-40 border-b border-dashed border-zinc-300 mb-1 flex items-end"><span class="text-[9px] text-zinc-400 italic no-print">Sign here if printing blank</span></div>`;
+                }
+
+                let sealBadge = appState.showSeal ? `
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="h-20 w-20 rounded-full border-4 flex flex-col items-center justify-center text-center p-1 relative shadow-inner" style="border-color: ${appState.themePrimary}; color: ${appState.themePrimary}; background-color: ${appState.themePrimary}08;">
+                            <i class="fa-solid fa-certificate text-xl mb-0.5"></i>
+                            <span class="text-[8px] font-black uppercase tracking-tighter leading-none no-print">OFFICIAL SEAL</span>
+                        </div>
+                    </div>
+                ` : '<div></div>';
+
+                let stampBox = appState.showStamp ? `
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="h-20 w-32 border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-1 text-center bg-zinc-50" style="border-color: ${appState.themePrimary}60; color: ${appState.themePrimary};">
+                            <i class="fa-solid fa-stamp text-lg mb-1"></i>
+                            <span class="text-[9px] font-bold uppercase tracking-wider no-print">CORP STAMP</span>
+                        </div>
+                    </div>
+                ` : '<div></div>';
+
+                signatureHtml = `
+                    <div class="grid grid-cols-3 gap-4 pt-6 mt-6 border-t border-zinc-200 items-end text-xs">
+                        <div>
+                            <div class="font-bold text-zinc-700 uppercase tracking-wider mb-3">Authorized Signatory</div>
+                            ${sigVisual}
+                            <div class="border-t border-zinc-400 pt-1 font-semibold text-zinc-900 w-44">${appState.authName || '[Authorized Name]'}</div>
+                            <div class="text-[11px] text-zinc-500">${appState.authTitle || '[Designation]'}</div>
+                        </div>
+                        ${stampBox}
+                        ${sealBadge}
+                    </div>
+                `;
+            }
+
+            // ==================== INVOICE LAYOUTS ====================
+            if (appState.docType === 'Invoice') {
+                if (appState.variant === 'corporate') {
+                    return `
+                        <div>
+                            <div class="bg-zinc-900 text-white p-6 rounded-2xl mb-6 flex ${justifyHeader} items-center shadow-xl">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black">${appState.senderName}</div><div class="text-xs text-zinc-400">${appState.senderContact}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">INVOICE</div><div class="text-xs font-mono text-zinc-300 mt-1"># ${appState.docNumber}</div><div class="text-xs text-zinc-400">Date: ${appState.date}</div></div>` : ''}
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                                <div><div class="font-bold uppercase tracking-wider mb-1 text-zinc-700">Billed To:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                                <div class="text-right flex flex-col justify-end"><div class="text-zinc-500">Due Date: <strong class="text-zinc-900">${appState.dueDate}</strong></div></div>
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs">
+                                <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Description</th><th class="py-2.5 px-3 text-center font-bold">Qty</th><th class="py-2.5 px-3 text-right font-bold">Unit Price</th><th class="py-2.5 px-3 text-right rounded-r-md font-bold">Total</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${i.desc}</td><td class="py-2.5 px-3 text-center font-mono text-zinc-600">${i.qty}</td><td class="py-2.5 px-3 text-right font-mono text-zinc-600">${curSym}${i.price.toLocaleString()}</td><td class="py-2.5 px-3 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <div class="flex justify-end mb-6"><div class="w-64 space-y-1.5 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200"><div class="flex justify-between font-bold text-zinc-900 text-sm"><span>Total Due:</span><span class="font-mono" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div></div></div>
+                            <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Payment Terms</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                        </div>
+                    `;
+                }
+                if (appState.variant === 'ledger') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-4 flex ${justifyHeader} items-end" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                <div class="text-right"><div class="text-xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">INVOICE # ${appState.docNumber}</div><div class="text-xs text-zinc-500">Date: ${appState.date} | Due: ${appState.dueDate}</div></div>
+                            </div>
+                            <div class="text-xs bg-zinc-50 p-3 rounded-lg border border-zinc-200 mb-4 flex justify-between"><div><strong>Client:</strong> ${appState.clientName} (${appState.clientContact})</div><div><strong>Currency:</strong> ${appState.currency}</div></div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs border border-zinc-200">
+                                <thead><tr class="text-white" style="background-color: ${appState.themePrimary}"><th class="py-2 px-3 font-bold">Item & Description</th><th class="py-2 px-3 text-center font-bold">Qty</th><th class="py-2 px-3 text-right font-bold">Rate</th><th class="py-2 px-3 text-right font-bold">Total</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(item => `<tr><td class="py-2 px-3 text-zinc-800">${item.desc}</td><td class="py-2 px-3 text-center font-mono">${item.qty}</td><td class="py-2 px-3 text-right font-mono">${curSym}${item.price.toLocaleString()}</td><td class="py-2 px-3 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(item.qty * item.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <div class="flex justify-end mb-4"><div class="w-56 text-xs space-y-1 font-mono"><div class="flex justify-between font-bold text-sm border-t pt-1" style="color: ${appState.themePrimary}"><span>Total:</span><span>${curSym}${total.toLocaleString()}</span></div></div></div>
+                            <div class="text-[11px] text-zinc-500 border-t pt-2">${appState.notes}</div>
+                            ${signatureHtml}
+                        </div>
+                    `;
+                }
+                if (appState.variant === 'split') {
+                    return `
+                        <div>
+                            <div class="grid grid-cols-2 gap-6 border-b pb-6 mb-6" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div></div>
+                                <div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">INVOICE</div><div class="font-mono text-xs font-bold text-zinc-700"># ${appState.docNumber}</div><div class="text-xs text-zinc-500">Date: ${appState.date}</div><div class="text-xs text-zinc-500">Due: ${appState.dueDate}</div></div>
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 mb-6 text-xs"><strong>Billed To:</strong> ${appState.clientName} — ${appState.clientAddress}</div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs">
+                                <thead><tr class="border-b" style="border-color: ${appState.themePrimary}"><th class="py-2 font-bold">Description</th><th class="py-2 text-center font-bold">Qty</th><th class="py-2 text-right font-bold">Amount</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2.5">${i.desc}</td><td class="py-2.5 text-center font-mono">${i.qty}</td><td class="py-2.5 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end font-mono font-bold text-sm mb-6">Total: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                return `
+                    <div>
+                        <div class="flex ${justifyHeader} items-start border-b-2 pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                            <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-xl font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div><div class="text-xs text-zinc-500">${appState.senderAddress}</div></div>
+                            ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">INVOICE</div><div class="text-xs font-mono font-bold text-zinc-700 mt-1">${appState.docNumber}</div><div class="text-xs text-zinc-500">Date: ${appState.date}</div><div class="text-xs text-zinc-500">Due: ${appState.dueDate}</div></div>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                            <div><div class="font-bold uppercase tracking-wider mb-1" style="color: ${appState.themeDark}">Billed To:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                            <div class="text-right flex flex-col justify-end"><div class="text-zinc-500">Currency: <strong class="text-zinc-900">${appState.currency}</strong></div></div>
+                        </div>
+                        <table class="w-full text-left border-collapse mb-6 text-xs">
+                            <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Description</th><th class="py-2.5 px-3 text-center font-bold">Qty</th><th class="py-2.5 px-3 text-right font-bold">Unit Price</th><th class="py-2.5 px-3 text-right rounded-r-md font-bold">Amount</th></tr></thead>
+                            <tbody class="divide-y divide-zinc-200">
+                                ${appState.items.map(item => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${item.desc}</td><td class="py-2.5 px-3 text-center text-zinc-600 font-mono">${item.qty}</td><td class="py-2.5 px-3 text-right text-zinc-600 font-mono">${curSym}${item.price.toLocaleString()}</td><td class="py-2.5 px-3 text-right font-bold font-mono" style="color: ${appState.themePrimary}">${curSym}${(item.qty * item.price).toLocaleString()}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="flex justify-end mb-6">
+                            <div class="w-64 space-y-1.5 text-xs">
+                                <div class="flex justify-between py-1 text-zinc-600"><span>Subtotal:</span><span class="font-mono font-semibold">${curSym}${subtotal.toLocaleString()}</span></div>
+                                ${discount > 0 ? `<div class="flex justify-between py-1" style="color: ${appState.themePrimary}"><span>Discount:</span><span class="font-mono font-semibold">-${curSym}${discount.toLocaleString()}</span></div>` : ''}
+                                ${tax > 0 ? `<div class="flex justify-between py-1 text-zinc-600"><span>Tax (${appState.taxRate}%):</span><span class="font-mono font-semibold">${curSym}${tax.toLocaleString()}</span></div>` : ''}
+                                <div class="flex justify-between py-2.5 border-t border-zinc-300 text-sm font-black text-zinc-900"><span>Total Due:</span><span class="font-mono" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                            </div>
+                        </div>
+                        <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Notes & Terms</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                    </div>
+                `;
+            }
+
+            // ==================== QUOTATION LAYOUTS ====================
+            if (appState.docType === 'Quotation') {
+                if (appState.variant === 'grid') {
+                    return `
+                        <div>
+                            <div class="border-b-2 pb-4 mb-6 flex ${justifyHeader} items-center" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-xl font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div></div>
+                                <div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">QUOTATION SPEC</div><div class="font-mono text-xs font-bold text-zinc-700">Ref: ${appState.docNumber} | ${appState.date}</div></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-xs mb-6 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                                <div><strong>Client:</strong> ${appState.clientName}</div>
+                                <div class="text-right"><strong>Valid Until:</strong> ${appState.dueDate}</div>
+                            </div>
+                            <div class="space-y-2 mb-6">
+                                ${appState.items.map((i, idx) => `
+                                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex justify-between items-center shadow-sm">
+                                        <div class="flex items-center space-x-3"><span class="bg-zinc-100 font-mono px-2 py-1 rounded text-xs font-bold">0${idx+1}</span><span class="font-medium text-zinc-900 text-xs">${i.desc}</span></div>
+                                        <div class="font-mono text-xs font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-end font-mono text-sm font-bold text-zinc-900 mb-6">Grand Total: <span class="ml-4" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'executive') {
+                    return `
+                        <div>
+                            <div class="flex flex-col ${flexAlign} border-b pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                                ${logoHtml}
+                                <div class="text-lg font-black text-zinc-900">${appState.senderName}</div>
+                                <div class="text-xs text-zinc-500">${appState.senderAddress}</div>
+                            </div>
+                            <div class="text-center mb-6">
+                                <h1 class="text-2xl font-black uppercase tracking-widest" style="color: ${appState.themePrimary}">EXECUTIVE QUOTATION</h1>
+                                <div class="text-xs font-mono text-zinc-500 mt-1">Ref: ${appState.docNumber} | Date: ${appState.date}</div>
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6">
+                                <div class="font-bold text-zinc-700 uppercase tracking-wider mb-1">Prepared For:</div>
+                                <div class="text-sm font-bold text-zinc-900">${appState.clientName}</div>
+                                <div class="text-zinc-600">${appState.clientContact} — ${appState.clientAddress}</div>
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs">
+                                <thead><tr class="border-b" style="border-color: ${appState.themePrimary}"><th class="py-2 font-bold">Item Description</th><th class="py-2 text-center font-bold">Qty</th><th class="py-2 text-right font-bold">Amount</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2.5">${i.desc}</td><td class="py-2.5 text-center font-mono">${i.qty}</td><td class="py-2.5 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end font-mono font-bold text-sm mb-6">Total Estimate: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'cards') {
+                    return `
+                        <div>
+                            <div class="flex ${justifyHeader} items-start border-b pb-4 mb-6">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">QUOTATION CARDS</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 mb-6">
+                                ${appState.items.map((i, idx) => `
+                                    <div class="p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+                                        <div class="text-[10px] font-mono text-zinc-400 font-bold mb-1">ITEM 0${idx+1}</div>
+                                        <div class="font-bold text-zinc-900 text-xs mb-2">${i.desc}</div>
+                                        <div class="flex justify-between text-xs font-mono"><span>Qty: ${i.qty}</span><span class="font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</span></div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-end font-mono font-bold text-sm mb-6">Total Estimate: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                return `
+                    <div>
+                        <div class="bg-zinc-900 text-white p-6 rounded-2xl mb-6 flex ${justifyHeader} items-center shadow-xl">
+                            <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black">${appState.senderName}</div><div class="text-xs text-zinc-400">${appState.senderContact}</div></div>
+                            ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">QUOTATION</div><div class="text-xs font-mono text-zinc-300 mt-1"># ${appState.docNumber}</div><div class="text-xs text-zinc-400">Date: ${appState.date}</div></div>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                            <div><div class="font-bold uppercase tracking-wider mb-1 text-zinc-700">Estimate For:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                            <div class="text-right flex flex-col justify-end"><div class="text-zinc-500">Validity Date: <strong class="text-zinc-900">${appState.dueDate}</strong></div></div>
+                        </div>
+                        <table class="w-full text-left border-collapse mb-6 text-xs">
+                            <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Scope Description</th><th class="py-2.5 px-3 text-center font-bold">Qty</th><th class="py-2.5 px-3 text-right font-bold">Unit Price</th><th class="py-2.5 px-3 text-right rounded-r-md font-bold">Total</th></tr></thead>
+                            <tbody class="divide-y divide-zinc-200">
+                                ${appState.items.map(i => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${i.desc}</td><td class="py-2.5 px-3 text-center font-mono text-zinc-600">${i.qty}</td><td class="py-2.5 px-3 text-right font-mono text-zinc-600">${curSym}${i.price.toLocaleString()}</td><td class="py-2.5 px-3 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="flex justify-end mb-6"><div class="w-64 space-y-1.5 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200"><div class="flex justify-between font-bold text-zinc-900 text-sm"><span>Estimated Total:</span><span class="font-mono" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div></div></div>
+                        <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Quotation Terms</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                    </div>
+                `;
+            }
+
+            // ==================== RECEIPTS ====================
+            if (appState.docType === 'Receipt') {
+                let amountPaidInput = parseFloat(document.getElementById('amount-paid').value) || total;
+                let balanceDue = Math.max(0, total - amountPaidInput);
+                let statusMode = document.getElementById('receipt-status-mode').value;
+                let isPaidFull = statusMode === 'full' || balanceDue === 0;
+
+                if (appState.variant === 'card') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-6 flex ${justifyHeader} items-center">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">VOUCHER RECEIPT</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6 flex justify-between">
+                                <div><strong>Client:</strong> ${appState.clientName}</div>
+                                <div><strong>Date:</strong> ${appState.date}</div>
+                            </div>
+                            <div class="space-y-2 mb-6">
+                                ${appState.items.map(i => `<div class="p-3 bg-white border border-zinc-200 rounded-lg flex justify-between text-xs"><span>${i.desc} (${i.qty}x)</span><span class="font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</span></div>`).join('')}
+                            </div>
+                            <div class="flex justify-end font-mono text-sm font-bold mb-6">Total Paid: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'ledger') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-4 flex ${justifyHeader} items-end" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                <div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">LEDGER RECEIPT</div><div class="text-xs font-mono">${appState.docNumber} | ${appState.date}</div></div>
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs border border-zinc-200">
+                                <thead><tr class="bg-zinc-100"><th class="py-2 px-3">Service</th><th class="py-2 px-3 text-center">Qty</th><th class="py-2 px-3 text-right">Amount</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2 px-3">${i.desc}</td><td class="py-2 px-3 text-center font-mono">${i.qty}</td><td class="py-2 px-3 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end font-mono font-bold text-sm mb-6">Total: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'badge') {
+                    return `
+                        <div class="text-center py-6">
+                            <div class="flex justify-center mb-2"><div class="flex flex-col ${flexAlign}">${logoHtml}</div></div>
+                            <div class="text-xl font-black text-zinc-900 mb-1">${appState.senderName}</div>
+                            <div class="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-4 bg-emerald-100 text-emerald-800">OFFICIAL CERTIFIED RECEIPT</div>
+                            <div class="text-xs font-mono text-zinc-500 mb-6">Ref: ${appState.docNumber} | Date: ${appState.date}</div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-left text-xs max-w-md mx-auto mb-6">
+                                <div class="font-bold text-zinc-900 mb-1">Billed To: ${appState.clientName}</div>
+                                <div class="text-zinc-600">Total Amount Settled: <strong class="font-mono" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</strong></div>
+                            </div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                return `
+                    <div>
+                        <div class="flex ${justifyHeader} items-center border-b-2 pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                            <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-xl font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div></div>
+                            ${appState.logoAlign !== 'center' ? `<div class="text-right">
+                                <div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">Official Receipt</div>
+                                <div class="text-xs font-mono font-bold text-zinc-700 mt-1">${appState.docNumber}</div>
+                                <div class="text-xs text-zinc-500">Date: ${appState.date}</div>
+                                <div class="mt-2 inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPaidFull ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${isPaidFull ? 'PAID IN FULL' : 'PARTIAL PAYMENT'}</div>
+                            </div>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                            <div><div class="font-bold uppercase tracking-wider mb-1" style="color: ${appState.themeDark}">Received From:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                            <div class="text-right flex flex-col justify-end font-mono text-xs space-y-1"><div class="text-zinc-500">Total Billed: <span class="font-bold text-zinc-900">${curSym}${total.toLocaleString()}</span></div><div class="font-bold" style="color: ${appState.themePrimary}">Amount Paid: ${curSym}${amountPaidInput.toLocaleString()}</div><div class="text-rose-600 font-bold">Balance Due: ${curSym}${balanceDue.toLocaleString()}</div></div>
+                        </div>
+                        <table class="w-full text-left border-collapse mb-6 text-xs">
+                            <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Paid Item / Service</th><th class="py-2.5 px-3 text-center font-bold">Qty</th><th class="py-2.5 px-3 text-right font-bold">Unit Price</th><th class="py-2.5 px-3 text-right rounded-r-md font-bold">Total</th></tr></thead>
+                            <tbody class="divide-y divide-zinc-200">
+                                ${appState.items.map(item => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${item.desc}</td><td class="py-2.5 px-3 text-center text-zinc-600 font-mono">${item.qty}</td><td class="py-2.5 px-3 text-right text-zinc-600 font-mono">${curSym}${item.price.toLocaleString()}</td><td class="py-2.5 px-3 text-right font-bold font-mono" style="color: ${appState.themePrimary}">${curSym}${(item.qty * item.price).toLocaleString()}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Receipt Notes</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                    </div>
+                `;
+            }
+
+            // ==================== CERTIFICATES ====================
+            if (appState.docType === 'Certificate') {
+                if (appState.variant === 'minimal') {
+                    return `
+                        <div class="flex flex-col justify-between h-full py-8 px-10 text-zinc-900 rounded-2xl relative my-auto border border-zinc-300">
+                            <div class="text-center">
+                                <div class="flex justify-center mb-2"><div class="flex flex-col ${flexAlign}">${logoHtml}</div></div>
+                                <div class="text-xs uppercase tracking-widest text-zinc-400 mb-2">${appState.senderName}</div>
+                                <h1 class="text-3xl font-bold uppercase tracking-wide text-zinc-900 mb-4 font-sans">${appState.certTitle}</h1>
+                                <p class="text-xs text-zinc-500 italic mb-2">Awarded to</p>
+                                <div class="text-2xl font-bold font-serif mb-4" style="color: ${appState.themePrimary}">${appState.clientName}</div>
+                                <p class="text-xs text-zinc-600 max-w-md mx-auto">${appState.notes}</p>
+                            </div>
+                            <div>${signatureHtml}</div>
+                        </div>
+                    `;
+                }
+                if (appState.variant === 'gold') {
+                    return `
+                        <div class="flex flex-col justify-between h-full py-8 px-10 rounded-2xl border-8 border-amber-400/60 bg-amber-50/10 text-zinc-900 relative my-auto shadow-md">
+                            <div class="text-center">
+                                <div class="flex justify-center mb-2"><div class="flex flex-col ${flexAlign}">${logoHtml}</div></div>
+                                <div class="text-xs uppercase tracking-[0.2em] font-bold text-amber-700 mb-1">${appState.senderName}</div>
+                                <h1 class="text-3xl font-black uppercase tracking-wider mb-3 font-cinzel text-amber-900">${appState.certTitle}</h1>
+                                <p class="text-xs text-zinc-500 italic mb-2">Presented with honor to</p>
+                                <div class="text-2xl font-bold font-serif border-b pb-1 inline-block px-8 mb-4 text-zinc-900 border-amber-400">${appState.clientName}</div>
+                                <p class="text-xs text-zinc-600 max-w-md mx-auto">${appState.notes}</p>
+                            </div>
+                            <div>${signatureHtml}</div>
+                        </div>
+                    `;
+                }
+                if (appState.variant === 'parchment') {
+                    return `
+                        <div class="flex flex-col justify-between h-full py-8 px-10 rounded-2xl bg-amber-50/30 border-4 border-amber-900/20 text-zinc-950 relative my-auto">
+                            <div class="text-center">
+                                <div class="flex justify-center mb-2"><div class="flex flex-col ${flexAlign}">${logoHtml}</div></div>
+                                <div class="text-xs uppercase tracking-widest font-bold text-amber-900 mb-2">${appState.senderName}</div>
+                                <h1 class="text-3xl font-extrabold uppercase font-serif tracking-wide mb-3">${appState.certTitle}</h1>
+                                <p class="text-xs text-zinc-600 italic mb-2">This is proudly awarded to</p>
+                                <div class="text-2xl font-bold font-serif mb-4" style="color: ${appState.themePrimary}">${appState.clientName}</div>
+                                <p class="text-xs text-zinc-700 max-w-md mx-auto">${appState.notes}</p>
+                            </div>
+                            <div>${signatureHtml}</div>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="flex flex-col justify-between h-full py-6 px-8 bg-gradient-to-b from-amber-50/20 via-white to-amber-50/10 text-zinc-900 rounded-2xl relative my-auto border-8 border-double shadow-lg" style="border-color: ${appState.themePrimary}">
+                        <div class="text-center">
+                            <div class="flex justify-center mb-2"><div class="flex flex-col ${flexAlign}">${logoHtml}</div></div>
+                            <div class="text-xs uppercase tracking-[0.25em] font-bold mb-1" style="color: ${appState.themeDark}">${appState.senderName || 'Organization Name'}</div>
+                            <div class="text-[10px] text-zinc-400 mb-4 font-mono">${appState.senderAddress}</div>
+                            <h4 class="text-[11px] uppercase tracking-[0.3em] text-zinc-500 font-semibold mb-1">Official Recognition</h4>
+                            <h1 class="text-3xl font-extrabold uppercase tracking-wider text-zinc-900 mb-3 font-cinzel" style="color: ${appState.themeDark}">${appState.certTitle || 'Certificate of Achievement'}</h1>
+                            <p class="text-xs text-zinc-500 mb-1 italic">This prestigious document is proudly presented to</p>
+                            <div class="text-2xl font-bold font-serif border-b-2 pb-1 inline-block px-10 mb-4" style="color: ${appState.themePrimary}; border-color: ${appState.themePrimary}">${appState.clientName || 'Recipient Full Name'}</div>
+                            <p class="text-xs text-zinc-600 max-w-lg mx-auto leading-relaxed mb-4 px-4">${appState.notes || 'For outstanding dedication, exceptional achievement, and successful completion of all required criteria.'}</p>
+                        </div>
+                        <div>
+                            <div class="grid grid-cols-3 items-end pt-4 border-t border-zinc-200 text-xs">
+                                <div>
+                                    <div class="text-[10px] text-zinc-400 font-mono">ID: ${appState.docNumber}</div>
+                                    <div class="text-[10px] text-zinc-400 font-mono">Date: ${appState.date}</div>
+                                </div>
+                                <div class="flex justify-center">
+                                    ${appState.showStamp ? `
+                                        <div class="h-16 w-28 border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-1 text-center bg-zinc-50/80" style="border-color: ${appState.themePrimary}60; color:${appState.themePrimary};">
+                                            <i class="fa-solid fa-stamp text-sm mb-0.5"></i>
+                                            <span class="text-[8px] font-bold uppercase tracking-wider no-print">OFFICIAL STAMP</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="text-right flex flex-col items-end">
+                                    ${appState.authSigUrl ? `<img src="${appState.authSigUrl}" class="h-10 max-w-[140px] object-contain mb-1" alt="Sig">` : `<div class="h-10 w-32 border-b border-dashed border-zinc-300 mb-1 flex items-end justify-end"><span class="text-[8px] text-zinc-400 italic no-print">Sign here</span></div>`}
+                                    <div class="border-t border-zinc-400 pt-0.5 font-semibold text-zinc-900 w-32">${appState.authName || '[Name]'}</div>
+                                    <div class="text-[10px] text-zinc-400">${appState.authTitle || '[Title]'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // ==================== PROPOSALS ====================
+            if (appState.docType === 'Proposal') {
+                if (appState.variant === 'technical') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-6 flex ${justifyHeader} items-center">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">TECHNICAL SOW</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6">
+                                <div class="font-bold text-zinc-900 mb-1">Scope of Work & Architecture</div>
+                                <p class="text-zinc-600">${appState.intro}</p>
+                            </div>
+                            <div class="space-y-2 mb-6">
+                                ${appState.items.map((i, idx) => `<div class="p-3 bg-white border border-zinc-200 rounded-lg text-xs flex justify-between"><span><strong>Deliverable ${idx+1}:</strong>${i.desc}</span><span class="font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</span></div>`).join('')}
+                            </div>
+                            <div class="flex justify-end font-mono text-sm font-bold mb-6">Total Investment: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'consulting') {
+                    return `
+                        <div>
+                            <div class="border-b-2 pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}</div>
+                                <div class="text-2xl font-black text-zinc-900">${appState.senderName}</div>
+                                <div class="text-xs uppercase tracking-wider text-zinc-500 mt-1">Consulting Proposal — Ref: ${appState.docNumber}</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-xs mb-6 bg-zinc-50 p-4 rounded-xl">
+                                <div><strong>Prepared For:</strong> ${appState.clientName}</div>
+                                <div><strong>Date:</strong> ${appState.date}</div>
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs">
+                                <thead><tr class="bg-zinc-100"><th class="py-2.5 px-3">Consulting Phase</th><th class="py-2.5 px-3 text-center">Qty</th><th class="py-2.5 px-3 text-right">Cost</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2.5 px-3">${i.desc}</td><td class="py-2.5 px-3 text-center font-mono">${i.qty}</td><td class="py-2.5 px-3 text-right font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end font-mono text-sm font-bold mb-6">Total: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'executive') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-6 flex ${justifyHeader} items-center">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">EXECUTIVE SUMMARY</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6 space-y-2">
+                                <div><strong>Executive Overview:</strong> ${appState.intro}</div>
+                                <div><strong>Company Profile:</strong> ${appState.companyProfile}</div>
+                            </div>
+                            <div class="space-y-2 mb-6">
+                                ${appState.items.map(i => `<div class="p-3 bg-white border border-zinc-200 rounded-lg text-xs flex justify-between"><span>${i.desc}</span><span class="font-mono font-bold" style="color: ${appState.themePrimary}">${curSym}${(i.qty*i.price).toLocaleString()}</span></div>`).join('')}
+                            </div>
+                            <div class="flex justify-end font-mono text-sm font-bold mb-6">Total: <span class="ml-2" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                return `
+                    <div>
+                        <div class="bg-zinc-900 text-white p-6 rounded-2xl mb-6 flex ${justifyHeader} items-center shadow-xl">
+                            <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black">${appState.senderName}</div><div class="text-xs text-zinc-400">${appState.senderContact}</div></div>
+                            ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">PROPOSAL</div><div class="text-xs font-mono text-zinc-300 mt-1"># ${appState.docNumber}</div><div class="text-xs text-zinc-400">Date: ${appState.date}</div></div>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                            <div><div class="font-bold uppercase tracking-wider mb-1" style="color: ${appState.themeDark}">Prepared For:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                            <div class="text-right flex flex-col justify-end"><div class="text-zinc-500">Validity Date: <strong class="text-zinc-900">${appState.dueDate}</strong></div></div>
+                        </div>
+                        <div class="mb-6 space-y-3 text-xs text-zinc-700">
+                            <div class="bg-zinc-50 p-3.5 rounded-xl border border-zinc-200"><strong class="text-zinc-900 block mb-1">Project Introduction & Objectives</strong>${appState.intro}</div>
+                            <div class="bg-zinc-50 p-3.5 rounded-xl border border-zinc-200"><strong class="text-zinc-900 block mb-1">Company Profile & Capabilities</strong>${appState.companyProfile}</div>
+                        </div>
+                        <table class="w-full text-left border-collapse mb-6 text-xs">
+                            <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Project Phase / Milestone</th><th class="py-2.5 px-3 text-center font-bold">Qty</th><th class="py-2.5 px-3 text-right font-bold">Rate</th><th class="py-2.5 px-3 text-right rounded-r-md font-bold">Total</th></tr></thead>
+                            <tbody class="divide-y divide-zinc-200">
+                                ${appState.items.map(item => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${item.desc}</td><td class="py-2.5 px-3 text-center text-zinc-600 font-mono">${item.qty}</td><td class="py-2.5 px-3 text-right text-zinc-600 font-mono">${curSym}${item.price.toLocaleString()}</td><td class="py-2.5 px-3 text-right font-bold font-mono" style="color: ${appState.themePrimary}">${curSym}${(item.qty * item.price).toLocaleString()}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="flex justify-end mb-6">
+                            <div class="w-64 space-y-1.5 text-xs">
+                                <div class="flex justify-between py-1 text-zinc-600"><span>Subtotal:</span><span class="font-mono font-semibold">${curSym}${subtotal.toLocaleString()}</span></div>
+                                ${discount > 0 ? `<div class="flex justify-between py-1" style="color: ${appState.themePrimary}"><span>Discount:</span><span class="font-mono font-semibold">-${curSym}${discount.toLocaleString()}</span></div>` : ''}
+                                ${tax > 0 ? `<div class="flex justify-between py-1 text-zinc-600"><span>Tax (${appState.taxRate}%):</span><span class="font-mono font-semibold">${curSym}${tax.toLocaleString()}</span></div>` : ''}
+                                <div class="flex justify-between py-2.5 border-t border-zinc-300 text-sm font-black text-zinc-900"><span>Total Investment:</span><span class="font-mono" style="color: ${appState.themePrimary}">${curSym}${total.toLocaleString()}</span></div>
+                            </div>
+                        </div>
+                        <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Terms & Conditions</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                    </div>
+                `;
+            }
+
+            // ==================== DELIVERY NOTES ====================
+            if (appState.docType === 'Delivery') {
+                if (appState.variant === 'logistics') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-6 flex ${justifyHeader} items-center">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">LOGISTICS SHEET</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6">
+                                <strong>Ship To:</strong> ${appState.clientName} — ${appState.clientAddress}
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs border border-zinc-200">
+                                <thead><tr class="bg-zinc-100"><th class="py-2 px-3">Item Description</th><th class="py-2 px-3 text-center">Qty Dispatched</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2 px-3">${i.desc}</td><td class="py-2 px-3 text-center font-mono font-bold">${i.qty}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'warehouse') {
+                    return `
+                        <div>
+                            <div class="border-b-2 pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}</div>
+                                <div class="text-2xl font-black text-zinc-900">${appState.senderName}</div>
+                                <div class="text-xs uppercase tracking-wider text-zinc-500 mt-1">Warehouse Inventory Manifest — ${appState.docNumber}</div>
+                            </div>
+                            <div class="space-y-2 mb-6">
+                                ${appState.items.map((i, idx) => `<div class="p-3 bg-zinc-50 border border-zinc-200 rounded-lg text-xs flex justify-between"><span>0${idx+1}.${i.desc}</span><span class="font-mono font-bold">Qty: ${i.qty}</span></div>`).join('')}
+                            </div>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                if (appState.variant === 'executive_dn') {
+                    return `
+                        <div>
+                            <div class="border-b pb-4 mb-6 flex ${justifyHeader} items-center">
+                                <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-lg font-black text-zinc-900">${appState.senderName}</div></div>
+                                ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-xl font-black uppercase" style="color: ${appState.themePrimary}">EXECUTIVE MANIFEST</div><div class="text-xs font-mono text-zinc-500">${appState.docNumber}</div></div>` : ''}
+                            </div>
+                            <div class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs mb-6">
+                                <strong>Recipient:</strong> ${appState.clientName} (${appState.clientContact})
+                            </div>
+                            <table class="w-full text-left border-collapse mb-6 text-xs">
+                                <thead><tr class="border-b" style="border-color: ${appState.themePrimary}"><th class="py-2">Item Description</th><th class="py-2 text-center">Quantity</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-200">
+                                    ${appState.items.map(i => `<tr><td class="py-2.5">${i.desc}</td><td class="py-2.5 text-center font-mono font-bold">${i.qty}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>${signatureHtml}</div>
+                    `;
+                }
+                return `
+                    <div>
+                        <div class="flex ${justifyHeader} items-center border-b-2 pb-4 mb-6" style="border-color: ${appState.themePrimary}">
+                            <div class="flex flex-col ${flexAlign}">${logoHtml}<div class="text-xl font-black text-zinc-900">${appState.senderName}</div><div class="text-xs text-zinc-500">${appState.senderContact}</div><div class="text-xs text-zinc-500">${appState.senderAddress}</div></div>
+                            ${appState.logoAlign !== 'center' ? `<div class="text-right"><div class="text-2xl font-black uppercase tracking-wider" style="color: ${appState.themePrimary}">Delivery Note</div><div class="text-xs font-mono font-bold text-zinc-700 mt-1">${appState.docNumber}</div><div class="text-xs text-zinc-500">Date: ${appState.date}</div></div>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6 text-xs bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                            <div><div class="font-bold uppercase tracking-wider mb-1" style="color: ${appState.themeDark}">Deliver To:</div><div class="font-bold text-zinc-900 text-sm">${appState.clientName}</div><div class="text-zinc-600">${appState.clientContact}</div><div class="text-zinc-600">${appState.clientAddress}</div></div>
+                        </div>
+                        <table class="w-full text-left border-collapse mb-6 text-xs">
+                            <thead><tr class="bg-zinc-100 text-zinc-900"><th class="py-2.5 px-3 rounded-l-md font-bold">Item Description</th><th class="py-2.5 px-3 text-center rounded-r-md font-bold">Qty Dispatched</th></tr></thead>
+                            <tbody class="divide-y divide-zinc-200">
+                                ${appState.items.map(item => `<tr><td class="py-2.5 px-3 text-zinc-800 font-medium">${item.desc}</td><td class="py-2.5 px-3 text-center text-zinc-900 font-mono font-bold">${item.qty}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="border-t border-zinc-200 pt-3 text-[11px] text-zinc-500 space-y-2"><div class="font-bold text-zinc-700 uppercase tracking-wider">Delivery Instructions</div><p class="leading-relaxed">${appState.notes}</p>${signatureHtml}</div>
+                    </div>
+                `;
+            }
+
+            return `<div>Document Preview</div>`;
+        }
+
+        function handleDownloadAction() {
+            if (isClientPaid() || !appState.clientName.trim()) {
+                executePdfDownload();
+            } else {
+                paymentTargetAction = 'download';
+                openPaymentModal();
+            }
+        }
+
+        function handlePrintAction() {
+            if (isClientPaid() || !appState.clientName.trim()) {
+                window.print();
+            } else {
+                paymentTargetAction = 'print';
+                openPaymentModal();
+            }
+        }
+
+        function openPaymentModal() {
+            document.getElementById('modal-client-badge').textContent = `Client: ${appState.clientName || 'Billed Client'}`;
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        function executePayment() {
+            let handler = PaystackPop.setup({
+                key: 'pk_live_your_actual_paystack_public_key_here',
+                email: appState.clientContact || 'client@example.com',
+                amount: 100 * 100,
+                currency: 'KES',
+                ref: 'DOCVERIFY_' + Math.floor((Math.random() * 1000000) + 1),
+                callback: function(response) {
+                    appState.lastPaidClientName = appState.clientName;
+                    closePaymentModal();
+                    updateLivePreview();
+                    
+                    if(typeof confetti === 'function') {
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                    }
+
+                    alert("Payment successful! Document verification unlocked.");
+                    if (paymentTargetAction === 'download') {
+                        executePdfDownload();
+                    } else if (paymentTargetAction === 'print') {
+                        window.print();
+                    }
+                },
+                onClose: function() {
+                    alert('Payment window closed.');
+                }
+            });
+            handler.openIframe();
+        }
+
+        function executePdfDownload() {
+            const element = document.getElementById('document-wrapper');
+            const opt = {
+                margin:       10,
+                filename:     `${appState.docNumber || 'Document'}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save();
+        }
+    </script>
+</body>
+</html>
